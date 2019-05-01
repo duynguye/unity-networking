@@ -16,7 +16,7 @@ public class ClientBehavior : MonoBehaviour
     public bool Done;
 
     // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
         m_Driver = new UdpNetworkDriver(new SimulatorUtility.Parameters { MaxPacketSize = 256, MaxPacketCount = 30, PacketDelayMs = 100 });
         m_Pipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage), typeof(SimulatorPipelineStage));
@@ -28,13 +28,13 @@ public class ClientBehavior : MonoBehaviour
         m_Connection = m_Driver.Connect(m_Endpoint);
     }
 
-    public void OnDestroy()
+    private  void OnDestroy()
     {
         m_Driver.Dispose();
     }
 
     // Update is called once per frame
-    void Update()
+    private void Update()
     {
         m_Driver.ScheduleUpdate().Complete();
 
@@ -48,38 +48,44 @@ public class ClientBehavior : MonoBehaviour
             return;
         }
 
-        DataStreamReader stream;
         NetworkEvent.Type cmd;
 
-        while ((cmd = m_Connection.PopEvent(m_Driver, out stream)) != NetworkEvent.Type.Empty)
+        while ((cmd = m_Connection.PopEvent(m_Driver, out DataStreamReader stream)) != NetworkEvent.Type.Empty)
         {
-            if (cmd == NetworkEvent.Type.Connect)
+            switch (cmd)
             {
-                Debug.Log("We are now connected to the server.");
+                case NetworkEvent.Type.Connect:
+                    Debug.Log("We are now connected to the server.");
+                    var value = 1;
 
-                var value = 1;
+                    using (var writer = new DataStreamWriter(4, Allocator.Temp))
+                    {
+                        writer.Write(value);
+                        m_Connection.Send(m_Driver, writer);
+                    }
 
-                using (var writer = new DataStreamWriter(4, Allocator.Temp))
-                {
-                    writer.Write(value);
-                    m_Connection.Send(m_Driver, writer);
-                }
-            }
-            else if (cmd == NetworkEvent.Type.Data)
-            {
-                var readerCtx = default(DataStreamReader.Context);
-                uint value = stream.ReadUInt(ref readerCtx);
+                    break;
 
-                Debug.Log("Got the value = " + value + " back from the server.");
+                case NetworkEvent.Type.Data:
+                    var readerCtx = default(DataStreamReader.Context);
+                    uint streamValue = stream.ReadUInt(ref readerCtx);
 
-                Done = true;
-                m_Connection.Disconnect(m_Driver);
-                m_Connection = default;
-            }
-            else if (cmd == NetworkEvent.Type.Disconnect)
-            {
-                Debug.Log("Client got disconnected from the server.");
-                m_Connection = default;
+                    Debug.Log("Got the value = " + streamValue + " back from the server.");
+
+                    Done = true;
+                    m_Connection.Disconnect(m_Driver);
+                    m_Connection = default;
+
+                    break;
+
+                case NetworkEvent.Type.Disconnect:
+                    Debug.Log("Client got disconnected from the server.");
+                    m_Connection = default;
+
+                    break;
+
+                case NetworkEvent.Type.Empty:
+                    break;
             }
         }
     }
