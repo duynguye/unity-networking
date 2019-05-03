@@ -55,15 +55,21 @@ struct ServerUpdateJob : IJobParallelFor
             if (command == NetworkEvent.Type.Data)
             {
                 var readerCtx = default(DataStreamReader.Context);
-                uint number = stream.ReadUInt(ref readerCtx);
+                byte[] bytes = stream.ReadBytesAsArray(ref readerCtx, sizeof(float) * 3);
 
-                Debug.Log("Got " + number + " from the Client adding +2 to it");
-                number += 2;
+                Vector3 position = new Vector3();
+                position.x = BitConverter.ToSingle(bytes, 0 * sizeof(float));
+                position.y = BitConverter.ToSingle(bytes, 1 * sizeof(float));
+                position.z = BitConverter.ToSingle(bytes, 2 * sizeof(float));
+
+                Debug.Log("Got vector coordinates of: { " + position.x + ", " + position.y + ", " + position.z + " }");
+
+                // number += 2;
 
                 using (var writer = new DataStreamWriter(4, Allocator.Temp))
                 {
-                    writer.Write(number);
-                    driver.Send(pipeline[0], connections[index], writer);
+                    // writer.Write(number);
+                    // driver.Send(pipeline[0], connections[index], writer);
                 }
             }
             else if (command == NetworkEvent.Type.Disconnect)

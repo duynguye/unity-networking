@@ -6,7 +6,10 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 
+using System.Net.WebSockets;
+
 using NetworkConnection = Unity.Networking.Transport.NetworkConnection;
+using System;
 
 struct ClientUpdateJob : IJob
 {
@@ -24,19 +27,32 @@ struct ClientUpdateJob : IJob
             return;
         }
 
-        DataStreamReader stream;
         NetworkEvent.Type command;
 
-        while ((command = connection[0].PopEvent(driver, out stream)) != NetworkEvent.Type.Empty)
+        while ((command = connection[0].PopEvent(driver, out DataStreamReader stream)) != NetworkEvent.Type.Empty)
         {
             if (command == NetworkEvent.Type.Connect)
             {
                 Debug.Log("We are now connected to the server");
 
-                var value = 1;
-                using (var writer = new DataStreamWriter(4, Allocator.Temp))
+                // var value = 1;
+
+                byte[] bytes = new byte[sizeof(float) * 3];
+                Buffer.BlockCopy(BitConverter.GetBytes(0.3f), 0, bytes, 0 * sizeof(float), sizeof(float));
+                Buffer.BlockCopy(BitConverter.GetBytes(30.2f), 0, bytes, 1 * sizeof(float), sizeof(float));
+                Buffer.BlockCopy(BitConverter.GetBytes(-7.3f), 0, bytes, 2 * sizeof(float), sizeof(float));
+
+                using (var writer = new DataStreamWriter(sizeof(float) * 3, Allocator.Temp))
                 {
-                    writer.Write(value);
+                    if (BitConverter.IsLittleEndian)
+                    {
+                        Debug.Log("Warning! Little Endian");
+                    }
+
+                    Debug.Log("Sending the byte string: " + BitConverter.ToString(bytes));
+
+                    writer.Write(bytes, bytes.Length);
+                    //writer.Write(value);
                     connection[0].Send(driver, writer);
                 }
             }
